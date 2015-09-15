@@ -12,7 +12,7 @@
 #
 WiFiControl =
   IFACE: null
-  DEBUG: false
+  DEBUG: true
   #
   #
   # WiFiLog:        Helper method for debugging and throwing
