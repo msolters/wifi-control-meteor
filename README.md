@@ -5,9 +5,24 @@ A Meteor Smart Package that allows for scanning for local WiFi access points, as
 This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/package/node-wifiscanner2) by Spark for the heavy lifting where AP scanning is concerned.
 
 # Methods
+All methods are presently synchronous.  This was a decision made that reflects the underlying purpose of this package -- sequential SoftAP setup wizards.
 
-## `WiFiControl.scan()`
+## Scan for Networks
 
-## `WiFiControl.connectToAP(ssid, security, password)`
+```js
+  var results = WiFiControl.scan();
+```
 
-## `WiFiControl.findInterface()`
+## Connect To WiFi Network
+
+
+```js
+  var results = WiFiControl.connectToAP(ssid, security, password);
+```
+
+## Find Wireless Interface
+It should not be necessary to use this method often.  It is called when the server boots up, and unless your wireless cards are frequently changing or being turned on or off, wireless interfaces are not expected to change that much.  The purpose of this app is to internally configure the `WiFiControl` tools to know what wireless interface your system has available.
+
+```js
+  var results = WiFiControl.findInterface();
+```
