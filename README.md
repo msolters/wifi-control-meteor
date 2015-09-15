@@ -26,3 +26,6 @@ It should not be necessary to use this method often.  It is called when the serv
 ```js
   var results = WiFiControl.findInterface();
 ```
+
+# Some Notes
+Linux won't let you mess with your wireless without authenticating as root.  Therefore, you may find some or all WiFi features do not work unless you launch your app with `sudo meteor`.
