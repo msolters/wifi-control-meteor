@@ -12,7 +12,7 @@
 #
 WiFiControl =
   IFACE: null
-  DEBUG: true
+  DEBUG: false
   #
   #
   # WiFiLog:        Helper method for debugging and throwing
@@ -28,41 +28,92 @@ WiFiControl =
   #                 WiFi card interface.
   #
   findInterface: ->
-    #
-    # (1) First, we find the wireless card interface on the host.
-    #
-    @WiFiLog "Determining system wireless interface..."
-    interfaceRequest = new Future
-    switch process.platform
-      when "linux"
-        @WiFiLog "Host machine is Linux."
-        # On linux, we use the results of `ip link show` and parse for
-        # active `wlan*` interfaces.
-        getIFACE = "ip link show | grep wlan | grep -i \"state UP\""
-        exec getIFACE, (error, stdout, stderr) =>
-          interfaceRequest.return stdout.trim().split(": ")[1]
-      when "win32"
-        @WiFiLog "Host machine is Windows."
-        # On windows // we are currently assuming wlan by default.
-        interfaceRequest.return "wlan" # default
-      when "darwin"
-        @WiFiLog "Host machine is MacOS."
-        # On Mac, we get use the results of getting the route to
-        # a public IP, and parse for interfaces.
-        getIFACE = "route get 10.10.10.10 | grep interface"
-        exec getIFACE, (error, stdout, stderr) =>
-          interfaceRequest.return stdout.trim().split(": ")[1]
-      else
-        interfaceRequest.return null
-    interfaceRequest.wait()
-    #
-    # (2) Did we find something?
-    #
-    if !interfaceRequest.value?
-      @WiFiLog "wifi-control was not able to find a wireless card interface on the host machine.", true
-    else
-      @IFACE = interfaceRequest.value
-      @WiFiLog "Host machine is using wireless interface #{@IFACE}"
+    try
+      #
+      # (1) First, we find the wireless card interface on the host.
+      #
+      @WiFiLog "Determining system wireless interface..."
+      interfaceRequest = new Future
+      switch process.platform
+        when "linux"
+          @WiFiLog "Host machine is Linux."
+          # On linux, we use the results of `ip link show` and parse for
+          # active `wlan*` interfaces.
+          findInterface = "ip link show | grep wlan | grep -i \"state UP\""
+          @WiFiLog "Executing: #{findInterface}"
+          exec findInterface, (error, stdout, stderr) =>
+            if error?
+              @WiFiLog stderr, true
+              interfaceRequest.return {
+                success: false
+                msg: "Error: #{stderr}"
+              }
+            else
+              _msg = "Success!"
+              @WiFiLog _msg
+              interfaceRequest.return {
+                success: true
+                msg: _msg
+                interface: stdout.trim().split(": ")[1]
+              }
+        when "win32"
+          @WiFiLog "Host machine is Windows."
+          # On windows we are currently assuming wlan by default.
+          findInterface = "echo wlan"
+          @WiFiLog "Executing: #{findInterface}"
+          exec findInterface, (error, stdout, stderr) =>
+            if error?
+              @WiFiLog stderr, true
+              interfaceRequest.return {
+                success: false
+                msg: "Error: #{stderr}"
+              }
+            else
+              _msg = "Success!"
+              @WiFiLog _msg
+              interfaceRequest.return {
+                success: true
+                msg: _msg
+                interface: stdout.trim()
+              }
+        when "darwin"
+          @WiFiLog "Host machine is MacOS."
+          # On Mac, we get use the results of getting the route to
+          # a public IP, and parse for interfaces.
+          findInterface = "route get 10.10.10.10 | grep interface"
+          @WiFiLog "Executing: #{findInterface}"
+          exec findInterface, (error, stdout, stderr) =>
+            if error?
+              @WiFiLog stderr, true
+              interfaceRequest.return {
+                success: false
+                msg: "Error: #{stderr}"
+              }
+            else
+              _msg = "Success!"
+              @WiFiLog _msg
+              interfaceRequest.return {
+                success: true
+                msg: _msg
+                interface: stdout.trim().split(": ")[1]
+              }
+        else
+          @WiFiLog "Unrecognized operating system.  No known method for acquiring wireless interface."
+          interfaceRequest.return {
+            success: false
+            msg: "No valid wireless interface could be located."
+            interface: null
+          }
+      interfaceResult = interfaceRequest.wait()
+      @IFACE = interfaceResult.interface
+      return interfaceResult
+    catch error
+      _msg = "Encountered an error while searching for wireless interface: #{error}"
+      @WiFiLog _msg, true
+      return {
+        success: false
+        msg: _msg
+      }
   #
   # scanWiFi:   Return a list of nearby WiFi access points by using the
   #             host machine's wireless interface.  For this, we are using
@@ -73,20 +124,24 @@ WiFiControl =
       @WiFiLog "You cannot scan for nearby WiFi networks without a valid wireless interface.", true
       return
     try
-      fut = new Future()
-      WiFiScanner.scan (err, data) ->
-        if err
-          fut.return {
+      @WiFiLog "Scanning for nearby WiFi Access Points..."
+      scanRequest = new Future()
+      WiFiScanner.scan (error, data) =>
+        if error
+          @WiFiLog "Error: #{error}", true
+          scanRequest.return {
             success: false
             msg: "We encountered an error while scanning for WiFi APs: #{error}"
           }
         else
-          fut.return {
+          _msg = "Nearby WiFi APs successfully scanned (#{data.length} found)."
+          @WiFiLog _msg
+          scanRequest.return {
             success: true
             networks: data
-            msg: "Nearby WiFi APs successfully scanned (#{data.length} found)."
+            msg: _msg
           }
-      fut.wait()
+      scanResults = scanRequest.wait()
     catch error
       return {
         success: false
@@ -99,6 +154,9 @@ WiFiControl =
   #                 only an ssid connects to an open network.
   #
   connectToAP: (ssid, security=false, pw=false) ->
+    unless @IFACE?
+      @WiFiLog "You cannot connect to a WiFi network without a valid wireless interface.", true
+      return
     switch process.platform
       when "linux"
         #
@@ -127,13 +185,19 @@ WiFiControl =
         # Once we create this XML file, we will add the profile inside, and then
         # connect to it all using the netsh command.
         #
+        @WiFiLog "Generating win32 wireless profile..."
+        #
+        # (1) Convert SSID to Hex
+        #
         ssid_hex = ""
         for i in [0..ssid.length-1]
           ssid_hex += ssid.charCodeAt(i).toString(16)
-        ssid.charCodeAt(i).toString(16)
+        #
+        # (2) Generate XML content for the provided parameters.
+        #
         xmlContent = "<?xml version=\"1.0\"?>
                       <WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">
-                        <name>Photon-SoftAP</name>
+                        <name>#{ssid}</name>
                         <SSIDConfig>
                           <SSID>
                             <hex>#{ssid_hex}</hex>
@@ -152,21 +216,27 @@ WiFiControl =
                           </security>
                         </MSM>
                       </WLANProfile>"
+        #
+        # (3) Write to XML file; wait until done.
+        #
         xmlWriteRequest = new Future()
-        fs.writeFile "Photon-SoftAP.xml", xmlContent, (err) ->
+        fs.writeFile "#{ssid}.xml", xmlContent, (err) ->
           if err?
-            console.error err
-            fut.return false
+            @WiFiLog err, true
+            xmlWriteRequest.return false
           else
-            fut.return true
-        if !fut.wait()
+            xmlWriteRequest.return true
+        if !xmlWriteRequest.wait()
           return {
             success: false
-            msg: "Encountered an error connecting to Photon: #{error}"
+            msg: "Encountered an error connecting to AP:"
           }
+        #
+        # (4) Load new XML profile, and connect to SSID.
+        #
         COMMANDS =
-          loadProfile: "netsh #{@IFACE} add profile filename=\"Photon-SoftAP.xml\""
-          connect: "netsh #{@IFACE} connect ssid=\"#{ssid}\" name=\"Photon-SoftAP\""
+          loadProfile: "netsh #{@IFACE} add profile filename=\"#{ssid}.xml\""
+          connect: "netsh #{@IFACE} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
         connectToPhotonChain = [ "loadProfile", "connect" ]
       when "darwin" # i.e., MacOS
         COMMANDS =
@@ -174,72 +244,84 @@ WiFiControl =
         connectToPhotonChain = [ "connect" ]
 
     for com in connectToPhotonChain
-      fut = new Future()
-      console.log "Executing #{COMMANDS[com]}"
-      child = exec COMMANDS[com], (error, stdout, stderr) ->
-        console.log "stdout: #{stdout}"
-        console.log "stderr: #{stderr}"
+      commandRequest = new Future()
+      @WiFiLog "Executing:\t#{COMMANDS[com]}"
+      exec COMMANDS[com], (error, stdout, stderr) =>
         if error?
-          console.log "exec error: #{error}"
-          fut.return {
+          @WiFiLog stderr, true
+          commandRequest.return {
             success: false
-            msg: "Encountered an error connecting to Photon: #{error}"
+            msg: "Error: #{stderr}"
           }
         else
-          fut.return {
+          _msg = "Success!"
+          @WiFiLog _msg
+          commandRequest.return {
             success: true
-            msg: "Successfully ran #{COMMANDS[com]}"
+            msg: _msg
           }
-      result = fut.wait()
-      if !result.success
-        return result
-      else
-        console.log result.msg
+      commandResult = commandRequest.wait()
+      return commandResult unless commandResult.success
     return {
       success: true
-      msg: "Successfully connected to Photon!"
+      msg: "Successfully connected to #{ssid}!"
     }
-  resetWiFi: =>
+  #
+  # resetWiFi:    Attempt to return the host machine's wireless to whatever
+  #               network it connects to by default.
+  #
+  resetWiFi: ->
     #
-    # (1) Determine operating system
+    # (1) Choose commands based on OS.
     #
-    switch @PLATFORM
+    switch process.platform
       when "linux"
+        # With Linux, we just restart the network-manager, which will
+        # immediately force its own preferences and defaults.
         COMMANDS =
-          startNM: "sudo service network-manager start"
+          startNM: "sudo service network-manager restart"
         resetWiFiChain = [ "startNM" ]
       when "win32"
+        # In Windows, we are just disconnecting from the current network.
+        # This typically causes the wireless to then re-connect to its first
+        # preference.
         COMMANDS =
           disconnect: "netsh #{@IFACE} disconnect"#"netsh #{IFACE} connect ssid=YOURSSID name=PROFILENAME"
         resetWiFiChain = [ "disconnect" ]
       when "darwin" # i.e., MacOS
+        # In MacOS, we are going to turn the wireless off and then on again.
+        # (lol)
         COMMANDS =
           enableAirport: "networksetup -setairportpower #{@IFACE} on"
           disableAirport: "networksetup -setairportpower #{@IFACE} off"
         resetWiFiChain = [ "disableAirport", "enableAirport" ]
-
+    #
+    # (2) Execute each command.
+    #
     for com in resetWiFiChain
-      fut = new Future()
-      child = exec COMMANDS[com], (error, stdout, stderr) ->
-        #console.log "stdout: #{stdout}"
-        #console.log "stderr: #{stderr}"
+      commandRequest = new Future()
+      @WiFiLog "Executing:\t#{COMMANDS[com]}"
+      exec COMMANDS[com], (error, stdout, stderr) =>
         if error?
-          console.log "exec error: #{error}"
-          fut.return {
+          @WiFiLog stderr, true
+          commandRequest.return {
             success: false
-            msg: "Encountered an error resetting WiFi: #{error}"
+            msg: "Error: #{error}"
           }
         else
-          fut.return {
+          _msg = "Success!"
+          @WiFiLog _msg
+          commandRequest.return {
             success: true
-            msg: "Successfully returned to home WiFi!"
+            msg: _msg
           }
-      if !fut.wait().success
-        return fut.wait()
+      commandResult = commandRequest.wait()
+      return commandResult unless commandResult
     return {
       success: true
-      msg: "Successfully returned to home WiFi!"
+      msg: "Successfully reset WiFi!"
     }
 
-#   Try to find a valid WiFi interface on boot.
+#   On boot, before the user does anything, we need
+#   to find a valid wireless interface.
 WiFiControl.findInterface()

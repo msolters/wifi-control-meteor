@@ -13,6 +13,20 @@ All methods are presently synchronous.  This was a decision made that reflects t
   var results = WiFiControl.scan();
 ```
 
+Example output:
+
+```js
+results = {
+  success: true,
+  networks:
+    [ { mac: '2C:5D:93:0D:1B:68',
+        channel: '11',
+        signal_level: '-42',
+        ssid: 'CIC' } ],
+  msg: 'Nearby WiFi APs successfully scanned (1 found).'
+}
+```
+
 ## Connect To WiFi Network
 
 
