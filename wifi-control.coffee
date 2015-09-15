@@ -157,170 +157,186 @@ WiFiControl =
     unless @IFACE?
       @WiFiLog "You cannot connect to a WiFi network without a valid wireless interface.", true
       return
-    switch process.platform
-      when "linux"
-        #
-        # With Linux, we can use ifconfig, iwconfig & dhclient to do most
-        # of our heavy lifting.
-        #
-        # NOTE: The most important thing with Linux is that to automate WiFi
-        #       control, we must turn off the network-manager service while
-        #       we do so.
-        #
-        COMMANDS =
-          stopNM: "sudo service network-manager stop"
-          enableIFACE: "sudo ifconfig #{@IFACE} up"
-          connect: "sudo iwconfig #{@IFACE} essid \"#{ssid}\""
-          getIP: "sudo dhclient #{@IFACE}"
-          startNM: "sudo service network-manager start"
-        connectToPhotonChain = [ "stopNM", "enableIFACE", "connect", "getIP"  ]
-      when "win32"
-        #
-        # Windows is a special child.  While the netsh command provides us
-        # quite a bit of functionality, the real kicker is that to connect
-        # to a given network using it, we must first have a so-called wireless
-        # profile for that network in the machine.
-        # This can be done ONLY through the GUI, or by loading an XML file which
-        # must already contain the SSID information in plaintext and as HEX.
-        # Once we create this XML file, we will add the profile inside, and then
-        # connect to it all using the netsh command.
-        #
-        @WiFiLog "Generating win32 wireless profile..."
-        #
-        # (1) Convert SSID to Hex
-        #
-        ssid_hex = ""
-        for i in [0..ssid.length-1]
-          ssid_hex += ssid.charCodeAt(i).toString(16)
-        #
-        # (2) Generate XML content for the provided parameters.
-        #
-        xmlContent = "<?xml version=\"1.0\"?>
-                      <WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">
-                        <name>#{ssid}</name>
-                        <SSIDConfig>
-                          <SSID>
-                            <hex>#{ssid_hex}</hex>
-                            <name>#{ssid}</name>
-                          </SSID>
-                        </SSIDConfig>
-                        <connectionType>ESS</connectionType>
-                        <connectionMode>manual</connectionMode>
-                        <MSM>
-                          <security>
-                            <authEncryption>
-                              <authentication>open</authentication>
-                              <encryption>none</encryption>
-                              <useOneX>false</useOneX>
-                            </authEncryption>
-                          </security>
-                        </MSM>
-                      </WLANProfile>"
-        #
-        # (3) Write to XML file; wait until done.
-        #
-        xmlWriteRequest = new Future()
-        fs.writeFile "#{ssid}.xml", xmlContent, (err) ->
-          if err?
-            @WiFiLog err, true
-            xmlWriteRequest.return false
-          else
-            xmlWriteRequest.return true
-        if !xmlWriteRequest.wait()
-          return {
-            success: false
-            msg: "Encountered an error connecting to AP:"
-          }
-        #
-        # (4) Load new XML profile, and connect to SSID.
-        #
-        COMMANDS =
-          loadProfile: "netsh #{@IFACE} add profile filename=\"#{ssid}.xml\""
-          connect: "netsh #{@IFACE} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
-        connectToPhotonChain = [ "loadProfile", "connect" ]
-      when "darwin" # i.e., MacOS
-        COMMANDS =
-          connect: "networksetup -setairportnetwork #{@IFACE} \"#{ssid}\""
-        connectToPhotonChain = [ "connect" ]
+    try
+      switch process.platform
+        when "linux"
+          #
+          # With Linux, we can use ifconfig, iwconfig & dhclient to do most
+          # of our heavy lifting.
+          #
+          # NOTE: The most important thing with Linux is that to automate WiFi
+          #       control, we must turn off the network-manager service while
+          #       we do so.
+          #
+          COMMANDS =
+            stopNM: "sudo service network-manager stop"
+            enableIFACE: "sudo ifconfig #{@IFACE} up"
+            connect: "sudo iwconfig #{@IFACE} essid \"#{ssid}\""
+            getIP: "sudo dhclient #{@IFACE}"
+            startNM: "sudo service network-manager start"
+          connectToPhotonChain = [ "stopNM", "enableIFACE", "connect", "getIP"  ]
+        when "win32"
+          #
+          # Windows is a special child.  While the netsh command provides us
+          # quite a bit of functionality, the real kicker is that to connect
+          # to a given network using it, we must first have a so-called wireless
+          # profile for that network in the machine.
+          # This can be done ONLY through the GUI, or by loading an XML file which
+          # must already contain the SSID information in plaintext and as HEX.
+          # Once we create this XML file, we will add the profile inside, and then
+          # connect to it all using the netsh command.
+          #
+          @WiFiLog "Generating win32 wireless profile..."
+          #
+          # (1) Convert SSID to Hex
+          #
+          ssid_hex = ""
+          for i in [0..ssid.length-1]
+            ssid_hex += ssid.charCodeAt(i).toString(16)
+          #
+          # (2) Generate XML content for the provided parameters.
+          #
+          xmlContent = "<?xml version=\"1.0\"?>
+                        <WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">
+                          <name>#{ssid}</name>
+                          <SSIDConfig>
+                            <SSID>
+                              <hex>#{ssid_hex}</hex>
+                              <name>#{ssid}</name>
+                            </SSID>
+                          </SSIDConfig>
+                          <connectionType>ESS</connectionType>
+                          <connectionMode>manual</connectionMode>
+                          <MSM>
+                            <security>
+                              <authEncryption>
+                                <authentication>open</authentication>
+                                <encryption>none</encryption>
+                                <useOneX>false</useOneX>
+                              </authEncryption>
+                            </security>
+                          </MSM>
+                        </WLANProfile>"
+          #
+          # (3) Write to XML file; wait until done.
+          #
+          xmlWriteRequest = new Future()
+          fs.writeFile "#{ssid}.xml", xmlContent, (err) ->
+            if err?
+              @WiFiLog err, true
+              xmlWriteRequest.return false
+            else
+              xmlWriteRequest.return true
+          if !xmlWriteRequest.wait()
+            return {
+              success: false
+              msg: "Encountered an error connecting to AP:"
+            }
+          #
+          # (4) Load new XML profile, and connect to SSID.
+          #
+          COMMANDS =
+            loadProfile: "netsh #{@IFACE} add profile filename=\"#{ssid}.xml\""
+            connect: "netsh #{@IFACE} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
+          connectToPhotonChain = [ "loadProfile", "connect" ]
+        when "darwin" # i.e., MacOS
+          COMMANDS =
+            connect: "networksetup -setairportnetwork #{@IFACE} \"#{ssid}\""
+          connectToPhotonChain = [ "connect" ]
 
-    for com in connectToPhotonChain
-      commandRequest = new Future()
-      @WiFiLog "Executing:\t#{COMMANDS[com]}"
-      exec COMMANDS[com], (error, stdout, stderr) =>
-        if error?
-          @WiFiLog stderr, true
-          commandRequest.return {
-            success: false
-            msg: "Error: #{stderr}"
-          }
-        else
-          _msg = "Success!"
-          @WiFiLog _msg
-          commandRequest.return {
-            success: true
-            msg: _msg
-          }
-      commandResult = commandRequest.wait()
-      return commandResult unless commandResult.success
-    return {
-      success: true
-      msg: "Successfully connected to #{ssid}!"
-    }
+      for com in connectToPhotonChain
+        commandRequest = new Future()
+        @WiFiLog "Executing:\t#{COMMANDS[com]}"
+        exec COMMANDS[com], (error, stdout, stderr) =>
+          if error?
+            @WiFiLog stderr, true
+            commandRequest.return {
+              success: false
+              msg: "Error: #{stderr}"
+            }
+          else
+            _msg = "Success!"
+            @WiFiLog _msg
+            commandRequest.return {
+              success: true
+              msg: _msg
+            }
+        commandResult = commandRequest.wait()
+        return commandResult unless commandResult.success
+      return {
+        success: true
+        msg: "Successfully connected to #{ssid}!"
+      }
+    catch error
+      _msg = "Encountered an error while connecting to #{ssid}: #{error}"
+      @WiFiLog _msg, true
+      return {
+        success: false
+        msg: _msg
+      }
   #
   # resetWiFi:    Attempt to return the host machine's wireless to whatever
   #               network it connects to by default.
   #
   resetWiFi: ->
-    #
-    # (1) Choose commands based on OS.
-    #
-    switch process.platform
-      when "linux"
-        # With Linux, we just restart the network-manager, which will
-        # immediately force its own preferences and defaults.
-        COMMANDS =
-          startNM: "sudo service network-manager restart"
-        resetWiFiChain = [ "startNM" ]
-      when "win32"
-        # In Windows, we are just disconnecting from the current network.
-        # This typically causes the wireless to then re-connect to its first
-        # preference.
-        COMMANDS =
-          disconnect: "netsh #{@IFACE} disconnect"#"netsh #{IFACE} connect ssid=YOURSSID name=PROFILENAME"
-        resetWiFiChain = [ "disconnect" ]
-      when "darwin" # i.e., MacOS
-        # In MacOS, we are going to turn the wireless off and then on again.
-        # (lol)
-        COMMANDS =
-          enableAirport: "networksetup -setairportpower #{@IFACE} on"
-          disableAirport: "networksetup -setairportpower #{@IFACE} off"
-        resetWiFiChain = [ "disableAirport", "enableAirport" ]
-    #
-    # (2) Execute each command.
-    #
-    for com in resetWiFiChain
-      commandRequest = new Future()
-      @WiFiLog "Executing:\t#{COMMANDS[com]}"
-      exec COMMANDS[com], (error, stdout, stderr) =>
-        if error?
-          @WiFiLog stderr, true
-          commandRequest.return {
-            success: false
-            msg: "Error: #{error}"
-          }
-        else
-          _msg = "Success!"
-          @WiFiLog _msg
-          commandRequest.return {
-            success: true
-            msg: _msg
-          }
-      commandResult = commandRequest.wait()
-      return commandResult unless commandResult
-    return {
-      success: true
-      msg: "Successfully reset WiFi!"
-    }
+    try
+      #
+      # (1) Choose commands based on OS.
+      #
+      switch process.platform
+        when "linux"
+          # With Linux, we just restart the network-manager, which will
+          # immediately force its own preferences and defaults.
+          COMMANDS =
+            startNM: "sudo service network-manager restart"
+          resetWiFiChain = [ "startNM" ]
+        when "win32"
+          # In Windows, we are just disconnecting from the current network.
+          # This typically causes the wireless to then re-connect to its first
+          # preference.
+          COMMANDS =
+            disconnect: "netsh #{@IFACE} disconnect"#"netsh #{IFACE} connect ssid=YOURSSID name=PROFILENAME"
+          resetWiFiChain = [ "disconnect" ]
+        when "darwin" # i.e., MacOS
+          # In MacOS, we are going to turn the wireless off and then on again.
+          # (lol)
+          COMMANDS =
+            enableAirport: "networksetup -setairportpower #{@IFACE} on"
+            disableAirport: "networksetup -setairportpower #{@IFACE} off"
+          resetWiFiChain = [ "disableAirport", "enableAirport" ]
+      #
+      # (2) Execute each command.
+      #
+      for com in resetWiFiChain
+        commandRequest = new Future()
+        @WiFiLog "Executing:\t#{COMMANDS[com]}"
+        exec COMMANDS[com], (error, stdout, stderr) =>
+          if error?
+            @WiFiLog stderr, true
+            commandRequest.return {
+              success: false
+              msg: "Error: #{error}"
+            }
+          else
+            _msg = "Success!"
+            @WiFiLog _msg
+            commandRequest.return {
+              success: true
+              msg: _msg
+            }
+        commandResult = commandRequest.wait()
+        return commandResult unless commandResult
+      return {
+        success: true
+        msg: "Successfully reset WiFi!"
+      }
+    catch error
+      _msg = "Encountered an error while resetting wireless interface: #{error}"
+      @WiFiLog _msg, true
+      return {
+        success: false
+        msg: _msg
+      }
 
 #   On boot, before the user does anything, we need
 #   to find a valid wireless interface.
