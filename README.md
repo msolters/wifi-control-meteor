@@ -34,11 +34,11 @@ All methods are presently synchronous.  This was a decision made that reflects t
 ##  Initialize
 The `WiFiControl.init()` method must be called before any other methods.  It accepts an optional object parameter, settings:
 
-```json
+```js
 var settings = {
   debug: true | false,
   iface: 'wlan0'
-}
+};
 WiFiControl.init( settings );
 ```
 
