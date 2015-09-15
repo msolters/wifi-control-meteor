@@ -11,8 +11,17 @@
 # Define WiFiControl object and methods.
 #
 WiFiControl =
-  IFACE: null
-  DEBUG: true
+  iface: null
+  debug: false
+  #
+  # init:
+  #
+  init: (settings={}) ->
+    # Configure debug settings.
+    @debug = settings.debug if settings.debug?
+    # Find network interface, with user's preference
+    # as override (if present).
+    @findInterface settings.iface
   #
   #
   # WiFiLog:        Helper method for debugging and throwing
@@ -22,13 +31,23 @@ WiFiControl =
     if error
       console.error "WiFiControl: #{msg}"
     else
-      console.log "WiFiControl: #{msg}" if @DEBUG
+      console.log "WiFiControl: #{msg}" if @debug
   #
   # findInterface:  Search host machine to find an active
   #                 WiFi card interface.
   #
-  findInterface: ->
+  findInterface: (iface=null) ->
     try
+      # If user is forcing an interface manually, do that.
+      if iface?
+        _msg = "Wireless interface manually set to #{iface}."
+        @WiFiLog _msg
+        @iface = iface
+        return {
+          success: true
+          msg: _msg
+          interface: iface
+        }
       #
       # (1) First, we find the wireless card interface on the host.
       #
@@ -105,7 +124,7 @@ WiFiControl =
             interface: null
           }
       interfaceResult = interfaceRequest.wait()
-      @IFACE = interfaceResult.interface
+      @iface = interfaceResult.interface
       return interfaceResult
     catch error
       _msg = "Encountered an error while searching for wireless interface: #{error}"
@@ -120,7 +139,7 @@ WiFiControl =
   #             the NPM package node-wifiscanner2 by Particle (aka Spark).
   #
   scanWiFi: ->
-    unless @IFACE?
+    unless @iface?
       @WiFiLog "You cannot scan for nearby WiFi networks without a valid wireless interface.", true
       return
     try
@@ -154,7 +173,7 @@ WiFiControl =
   #                 only an ssid connects to an open network.
   #
   connectToAP: (ssid, security=false, pw=false) ->
-    unless @IFACE?
+    unless @iface?
       @WiFiLog "You cannot connect to a WiFi network without a valid wireless interface.", true
       return
     try
@@ -170,11 +189,11 @@ WiFiControl =
           #
           COMMANDS =
             stopNM: "sudo service network-manager stop"
-            enableIFACE: "sudo ifconfig #{@IFACE} up"
-            connect: "sudo iwconfig #{@IFACE} essid \"#{ssid}\""
-            getIP: "sudo dhclient #{@IFACE}"
+            enableiface: "sudo ifconfig #{@iface} up"
+            connect: "sudo iwconfig #{@iface} essid \"#{ssid}\""
+            getIP: "sudo dhclient #{@iface}"
             startNM: "sudo service network-manager start"
-          connectToPhotonChain = [ "stopNM", "enableIFACE", "connect", "getIP"  ]
+          connectToPhotonChain = [ "stopNM", "enableiface", "connect", "getIP"  ]
         when "win32"
           #
           # Windows is a special child.  While the netsh command provides us
@@ -236,12 +255,12 @@ WiFiControl =
           # (4) Load new XML profile, and connect to SSID.
           #
           COMMANDS =
-            loadProfile: "netsh #{@IFACE} add profile filename=\"#{ssid}.xml\""
-            connect: "netsh #{@IFACE} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
+            loadProfile: "netsh #{@iface} add profile filename=\"#{ssid}.xml\""
+            connect: "netsh #{@iface} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
           connectToPhotonChain = [ "loadProfile", "connect" ]
         when "darwin" # i.e., MacOS
           COMMANDS =
-            connect: "networksetup -setairportnetwork #{@IFACE} \"#{ssid}\""
+            connect: "networksetup -setairportnetwork #{@iface} \"#{ssid}\""
           connectToPhotonChain = [ "connect" ]
 
       for com in connectToPhotonChain
@@ -295,14 +314,14 @@ WiFiControl =
           # This typically causes the wireless to then re-connect to its first
           # preference.
           COMMANDS =
-            disconnect: "netsh #{@IFACE} disconnect"#"netsh #{IFACE} connect ssid=YOURSSID name=PROFILENAME"
+            disconnect: "netsh #{@iface} disconnect"#"netsh #{iface} connect ssid=YOURSSID name=PROFILENAME"
           resetWiFiChain = [ "disconnect" ]
         when "darwin" # i.e., MacOS
           # In MacOS, we are going to turn the wireless off and then on again.
           # (lol)
           COMMANDS =
-            enableAirport: "networksetup -setairportpower #{@IFACE} on"
-            disableAirport: "networksetup -setairportpower #{@IFACE} off"
+            enableAirport: "networksetup -setairportpower #{@iface} on"
+            disableAirport: "networksetup -setairportpower #{@iface} off"
           resetWiFiChain = [ "disableAirport", "enableAirport" ]
       #
       # (2) Execute each command.
@@ -337,7 +356,3 @@ WiFiControl =
         success: false
         msg: _msg
       }
-
-#   On boot, before the user does anything, we need
-#   to find a valid wireless interface.
-WiFiControl.findInterface()
