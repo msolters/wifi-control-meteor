@@ -11,7 +11,7 @@ A Meteor Smart Package that allows for scanning for local WiFi access points, as
 (Server)
 ```js
   Meteor.startup({
-    //  Initialize wifi-control package
+    //  Initialize wifi-control package with defaults
     WiFiControl.init();
   });
 ```
@@ -53,22 +53,23 @@ Therefore, it is recommended that if you roll your own Meteor methods, you add `
 ##  Initialize
 (Server only)
 ```
-  WiFiControl.init();
+  WiFiControl.init( settings );
 ```
 
 Before `WiFiControl` can scan or connect/disconnect using the host machine's wireless interface, it must know what that wireless interface is!
 
-To initialize the network interface and simultaneously pass in any custom settings, simply call `WiFiControl.init( settings )` on the server at startup.  `settings` is an optional parameter -- see `WiFiControl.configure( settings )` below.
+To initialize the network interface and simultaneously pass in any custom settings, simply call `WiFiControl.init( settings )` on the server at startup.  `settings` is an optional parameter -- see [`WiFiControl.configure( settings )`](https://github.com/msolters/wifi-control#configure) below.
 
 To instruct the `WiFiControl` module to locate a wireless interface programmatically, or to manually force a network interface, see the `WiFiControl.findInterface( interface )` command.
 
 ##  Configure
-You can change `WiFiControl` settings at any time using this method.
-
-Possible `WiFiControl` settings are as follows:
-
-(Server only)
 ```js
+  WiFiControl.configure( settings );
+```
+You can change the `WiFiControl` settings at any time using this method.  Possible `WiFiControl` settings are illustrated in the following example:
+
+```js
+  // Server only
   var settings = {
     debug: true | false,
     iface: 'wlan0'
@@ -77,8 +78,11 @@ Possible `WiFiControl` settings are as follows:
   // also WiFiControl.init( settings );
 ```
 
-*  `debug`:  When `debug: true`,  will turn on verbose output to the server console.  When `debug: false` (default), only errors will be printed to the server console.
-*  `iface` can be used to manually specify a network interface to use, instead of relying on `WiFiControl.findInterface()` to automatically find it.  This could be useful if for any reason `WiFiControl.findInterface()` is not working, or you have multiple network cards.
+**Settings Object**
+key | Explanation
+---|---
+`debug` | (optional, bool) When `debug: true`,  will turn on verbose output to the server console.  When `debug: false` (default), only errors will be printed to the server console.
+`iface` | (optional, string) can be used to manually specify a network interface to use, instead of relying on `WiFiControl.findInterface()` to automatically find it.  This could be useful if for any reason `WiFiControl.findInterface()` is not working, or you have multiple network cards.
 
 ## Scan for Networks
 This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/package/node-wifiscanner2) by Spark for the heavy lifting where AP scanning is concerned.
@@ -136,6 +140,15 @@ Meteor method:
     console.log( response );
   });
 ```
+
+## Reset Wireless Interface
+```js
+  WiFiControl.resetWiFi();
+```
+After connecting or disconnecting to various APs programmatically (which may or may not succeed) it is useful to have a way to reset the network interface to system defaults.
+
+This method attempts to do that, either by disconnecting the interface or restarting the system manager, if it exists.  It will report either success or failure in the return message.
+
 
 ## Find Wireless Interface
 It should not be necessary to use this method often.  Unless your wireless cards are frequently changing or being turned on or off, wireless interfaces are not expected to change a great deal.

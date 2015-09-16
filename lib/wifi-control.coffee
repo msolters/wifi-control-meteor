@@ -202,8 +202,7 @@ WiFiControl =
       #
       # (1) Verify there is a valid SSID
       #
-      ssid = _ap.ssid
-      unless ssid.length
+      unless _ap.ssid.length
         return {
           success: false
           msg: "Please provide a non-empty SSID."
@@ -221,10 +220,40 @@ WiFiControl =
           COMMANDS =
             stopNM: "sudo service network-manager stop"
             enableiface: "sudo ifconfig #{@iface} up"
-            connect: "sudo iwconfig #{@iface} essid \"#{ssid}\""
+            releaseIP: "sudo dhclient #{@iface} -r"
             getIP: "sudo dhclient #{@iface}"
-            startNM: "sudo service network-manager start"
-          connectToPhotonChain = [ "stopNM", "enableiface", "connect", "getIP"  ]
+          switch _ap.security
+            when "WPA"
+              # Here we must use wpa_passphrase & wpa_supplicant.
+              @WiFiLog "Connecting to #{_ap.ssid} using WPA security."
+              unless _ap.password.length
+                _msg = "If you are using #{_ap.security}, please provide a valid network password."
+                @WiFiLog _msg, true
+                return {
+                  success: false
+                  msg: _msg
+                }
+              COMMANDS.wpaPassphrase = "sudo wpa_passphrase \"#{_ap.ssid}\" \"#{_ap.password}\" > network.conf"
+              COMMANDS.wpaSupplicant = "sudo wpa_supplicant -B -Dwext -i#{@iface} -cnetwork.conf"
+              connectToPhotonChain = [ "stopNM", "wpaPassphrase", "wpaSupplicant", "releaseIP", "getIP" ]
+            when "WEP"
+              # Here we must use iwconfig.
+              @WiFiLog "Connecting to #{_ap.ssid} using WEP security."
+              unless _ap.password.length
+                COMMANDS.connect = ""
+                _msg = "If you are using #{_ap.security}, please provide a valid network password."
+                @WiFiLog _msg, true
+                return {
+                  success: false
+                  msg: _msg
+                }
+              COMMANDS.configureSSID = "sudo iwconfig #{@iface} essid \"#{_ap.ssid}\""
+              #COMMANDS.configure
+              connectToPhotonChain = [ "stopNM", "configureSSID", "enableiface", "releaseIP", "getIP"  ]
+            else
+              @WiFiLog "Connecting to open network #{_ap.ssid}, no security."
+              COMMANDS.configureSSID = "sudo iwconfig #{@iface} essid \"#{_ap.ssid}\""
+              connectToPhotonChain = [ "stopNM", "configureSSID", "enableiface", "releaseIP", "getIP"  ]
         when "win32"
           #
           # Windows is a special child.  While the netsh command provides us
@@ -241,18 +270,18 @@ WiFiControl =
           # (1) Convert SSID to Hex
           #
           ssid_hex = ""
-          for i in [0..ssid.length-1]
+          for i in [0.._ap.ssid.length-1]
             ssid_hex += ssid.charCodeAt(i).toString(16)
           #
           # (2) Generate XML content for the provided parameters.
           #
           xmlContent = "<?xml version=\"1.0\"?>
                         <WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">
-                          <name>#{ssid}</name>
+                          <name>#{_ap.ssid}</name>
                           <SSIDConfig>
                             <SSID>
                               <hex>#{ssid_hex}</hex>
-                              <name>#{ssid}</name>
+                              <name>#{_ap.ssid}</name>
                             </SSID>
                           </SSIDConfig>
                           <connectionType>ESS</connectionType>
@@ -271,7 +300,7 @@ WiFiControl =
           # (3) Write to XML file; wait until done.
           #
           xmlWriteRequest = new Future
-          fs.writeFile "#{ssid}.xml", xmlContent, (err) ->
+          fs.writeFile "#{_ap.ssid}.xml", xmlContent, (err) ->
             if err?
               @WiFiLog err, true
               xmlWriteRequest.return false
@@ -286,12 +315,12 @@ WiFiControl =
           # (4) Load new XML profile, and connect to SSID.
           #
           COMMANDS =
-            loadProfile: "netsh #{@iface} add profile filename=\"#{ssid}.xml\""
-            connect: "netsh #{@iface} connect ssid=\"#{ssid}\" name=\"#{ssid}\""
+            loadProfile: "netsh #{@iface} add profile filename=\"#{_ap.ssid}.xml\""
+            connect: "netsh #{@iface} connect ssid=\"#{_ap.ssid}\" name=\"#{_ap.ssid}\""
           connectToPhotonChain = [ "loadProfile", "connect" ]
         when "darwin" # i.e., MacOS
           COMMANDS =
-            connect: "networksetup -setairportnetwork #{@iface} \"#{ssid}\""
+            connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\""
           connectToPhotonChain = [ "connect" ]
 
       for com in connectToPhotonChain
@@ -315,10 +344,10 @@ WiFiControl =
         return commandResult unless commandResult.success
       return {
         success: true
-        msg: "Successfully connected to #{ssid}!"
+        msg: "Successfully connected to #{_ap.ssid}!"
       }
     catch error
-      _msg = "Encountered an error while connecting to #{ssid}: #{error}"
+      _msg = "Encountered an error while connecting to #{_ap.ssid}: #{error}"
       @WiFiLog _msg, true
       return {
         success: false

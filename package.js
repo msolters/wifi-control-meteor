@@ -2,7 +2,7 @@ Package.describe({
   name: 'msolters:wifi-control',
   version: '0.0.1',
   // Brief, one-line summary of the package.
-  summary: 'Scan for, connect to, or disconnect from WiFi networks.  Useful for partially or fully offline apps, such as Electrified apps.',
+  summary: 'Scan for, connect to, or disconnect from WiFi networks.',
   // URL to the Git repository containing the source code for this package.
   git: 'https://github.com/msolters/wifi-control',
   // By default, Meteor will default to using README.md for documentation.
