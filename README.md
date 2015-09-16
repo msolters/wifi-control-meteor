@@ -23,7 +23,7 @@ This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/pack
       return( WiFiControl.resetWiFi() );
     },
     scanAPs: function() {
-      return( WiFiControl.scanWiFi() );
+      return( WiFiControl.scanForWiFi() );
     }
   });
 ```

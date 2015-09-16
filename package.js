@@ -17,7 +17,7 @@ Npm.depends({
 Package.onUse(function(api) {
   api.versionsFrom('1.1.0.3');
   api.use('coffeescript');
-  api.addFiles( ['wifi-control.coffee', 'wifi-control-methods.coffee'], 'server');
+  api.addFiles( ['wifi-control.coffee', 'wifi-control-server.coffee'], 'server');
   api.export('WiFiControl', 'server');
 });
 

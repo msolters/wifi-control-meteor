@@ -1,27 +1,34 @@
 #
-# NPM Dependencies.
-#
-@Future = Npm.require 'fibers/future' # for promised callbacks!
-@WiFiScanner = Npm.require 'node-wifiscanner2'  # for AP scanning functionality!
-@fs = Npm.require 'fs' # Because Windows netsh requires .xml wireless profiles
-@exec = Npm.require('child_process').exec # our main command line workhorse
-
-
-#
 # Define WiFiControl object and methods.
 #
 WiFiControl =
   iface: null
   debug: false
   #
-  # init:
+  # init:   Initial setup.  This is almost the same as config, except it
+  #         adds the additional step of attempting to automatically locate
+  #         a network interface if one was not specified in settings.
   #
-  init: (settings={}) ->
+  #         This is optional, provided you manually set an interface by calling
+  #         WiFiControl.configure({iface: "myifc"}), or by triggering the automatic
+  #         interface lookup by calling WiFiControl.findInterface() elsewhere in
+  #         the code before attempting to scan/(dis)connect.
+  #
+  init: ( settings={} ) ->
+    # Apply any manual settings passed in.
+    @configure settings
+    # Make sure we try to find an interface if none specified:
+    #   (WiFiControl.configure will not do so!)
+    @findInterface settings.iface unless settings.iface?
+  #
+  # configure:    Update or change settings such as debug state or manual
+  #               network interface selection.
+  #
+  configure: ( settings={} ) ->
     # Configure debug settings.
     @debug = settings.debug if settings.debug?
-    # Find network interface, with user's preference
-    # as override (if present).
-    @findInterface settings.iface
+    # Set network interface to settings.iface.
+    @findInterface settings.iface if settings.iface?
   #
   #
   # WiFiLog:        Helper method for debugging and throwing
@@ -138,11 +145,11 @@ WiFiControl =
         msg: _msg
       }
   #
-  # scanWiFi:   Return a list of nearby WiFi access points by using the
-  #             host machine's wireless interface.  For this, we are using
-  #             the NPM package node-wifiscanner2 by Particle (aka Spark).
+  # scanForWiFi:   Return a list of nearby WiFi access points by using the
+  #                host machine's wireless interface.  For this, we are using
+  #                the NPM package node-wifiscanner2 by Particle (aka Spark).
   #
-  scanWiFi: ->
+  scanForWiFi: ->
     unless @iface?
       _msg = "You cannot scan for nearby WiFi networks without a valid wireless interface."
       @WiFiLog _msg, true
@@ -152,7 +159,7 @@ WiFiControl =
       }
     try
       @WiFiLog "Scanning for nearby WiFi Access Points..."
-      scanRequest = new Future()
+      scanRequest = new Future
       WiFiScanner.scan (error, data) =>
         if error
           @WiFiLog "Error: #{error}", true
@@ -251,7 +258,7 @@ WiFiControl =
           #
           # (3) Write to XML file; wait until done.
           #
-          xmlWriteRequest = new Future()
+          xmlWriteRequest = new Future
           fs.writeFile "#{ssid}.xml", xmlContent, (err) ->
             if err?
               @WiFiLog err, true
@@ -276,7 +283,7 @@ WiFiControl =
           connectToPhotonChain = [ "connect" ]
 
       for com in connectToPhotonChain
-        commandRequest = new Future()
+        commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
         exec COMMANDS[com], (error, stdout, stderr) =>
           if error?
@@ -339,7 +346,7 @@ WiFiControl =
       # (2) Execute each command.
       #
       for com in resetWiFiChain
-        commandRequest = new Future()
+        commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
         exec COMMANDS[com], (error, stdout, stderr) =>
           if error?
