@@ -62,10 +62,14 @@ WiFiControl =
           @WiFiLog "Executing: #{findInterface}"
           exec findInterface, (error, stdout, stderr) =>
             if error?
-              @WiFiLog stderr, true
+              if stderr.length
+                _msg = "Error: #{stderr}"
+              else
+                _msg = "Error: No network interface found."
+              @WiFiLog _msg, true
               interfaceRequest.return {
                 success: false
-                msg: "Error: #{stderr}"
+                msg: _msg
               }
             else
               _msg = "Success!"
@@ -140,8 +144,12 @@ WiFiControl =
   #
   scanWiFi: ->
     unless @iface?
-      @WiFiLog "You cannot scan for nearby WiFi networks without a valid wireless interface.", true
-      return
+      _msg = "You cannot scan for nearby WiFi networks without a valid wireless interface."
+      @WiFiLog _msg, true
+      return {
+        success: false
+        msg: _msg
+      }
     try
       @WiFiLog "Scanning for nearby WiFi Access Points..."
       scanRequest = new Future()
@@ -174,8 +182,12 @@ WiFiControl =
   #
   connectToAP: (ssid, security=false, pw=false) ->
     unless @iface?
-      @WiFiLog "You cannot connect to a WiFi network without a valid wireless interface.", true
-      return
+      _msg = "You cannot connect to a WiFi network without a valid wireless interface."
+      @WiFiLog _msg, true
+      return {
+        success: false
+        msg: _msg
+      }
     try
       switch process.platform
         when "linux"

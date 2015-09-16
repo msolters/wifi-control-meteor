@@ -1,8 +1,5 @@
 {
   "dependencies": {
-    "future": {
-      "version": "2.3.1"
-    },
     "node-wifiscanner2": {
       "version": "1.1.0",
       "dependencies": {
