@@ -3,8 +3,8 @@
 #
 @Future = Npm.require 'fibers/future' # for promised callbacks!
 @WiFiScanner = Npm.require 'node-wifiscanner2'  # for AP scanning functionality!
+@fs = Npm.require 'fs' # Because Windows netsh requires .xml wireless profiles
 @exec = Npm.require('child_process').exec # our main command line workhorse
-@fs = Npm.require('fs') # Because Windows netsh requires .xml wireless profiles
 
 
 #
