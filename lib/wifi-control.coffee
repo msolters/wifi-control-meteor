@@ -79,12 +79,13 @@ WiFiControl =
                 msg: _msg
               }
             else
-              _msg = "Success!"
+              _iface = stdout.trim().split(": ")[1]
+              _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
                 success: true
                 msg: _msg
-                interface: stdout.trim().split(": ")[1]
+                interface: _iface
               }
         when "win32"
           @WiFiLog "Host machine is Windows."
@@ -99,12 +100,13 @@ WiFiControl =
                 msg: "Error: #{stderr}"
               }
             else
-              _msg = "Success!"
+              _iface = stdout.trim()
+              _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
                 success: true
                 msg: _msg
-                interface: stdout.trim()
+                interface: _iface
               }
         when "darwin"
           @WiFiLog "Host machine is MacOS."
@@ -120,12 +122,13 @@ WiFiControl =
                 msg: "Error: #{stderr}"
               }
             else
-              _msg = "Success!"
+              _iface = stdout.trim().split(": ")[1]
+              _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
                 success: true
                 msg: _msg
-                interface: stdout.trim().split(": ")[1]
+                interface: _iface
               }
         else
           @WiFiLog "Unrecognized operating system.  No known method for acquiring wireless interface."
@@ -187,7 +190,7 @@ WiFiControl =
   #                 security and pw are optional parameters; calling with
   #                 only an ssid connects to an open network.
   #
-  connectToAP: (ssid, security=false, pw=false) ->
+  connectToAP: ( _ap ) ->
     unless @iface?
       _msg = "You cannot connect to a WiFi network without a valid wireless interface."
       @WiFiLog _msg, true
@@ -196,6 +199,15 @@ WiFiControl =
         msg: _msg
       }
     try
+      #
+      # (1) Verify there is a valid SSID
+      #
+      ssid = _ap.ssid
+      unless ssid.length
+        return {
+          success: false
+          msg: "Please provide a non-empty SSID."
+        }
       switch process.platform
         when "linux"
           #
