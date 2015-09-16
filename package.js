@@ -11,8 +11,7 @@ Package.describe({
 });
 
 Npm.depends({
-  "node-wifiscanner2": "1.1.0",
-  "future": "2.3.1"
+  "node-wifiscanner2": "1.1.0"
 });
 
 Package.onUse(function(api) {
