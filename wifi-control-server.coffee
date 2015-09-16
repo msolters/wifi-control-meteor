@@ -10,15 +10,15 @@
 # WiFiControl Meteor Methods
 #
 Meteor.methods
-  WC_findInterface: ( forceInterface=null ) ->
+  findInterface: ( forceInterface=null ) ->
     @unblock
     WiFiControl.findInterface forceInterface
-  WC_scanForWiFi: ->
+  scanForWiFi: ->
     @unblock
     WiFiControl.scanForWiFi()
-  WC_resetWiFi: ->
+  resetWiFi: ->
     @unblock
     WiFiControl.resetWiFi()
-  WC_connectToAP: ( _ap ) ->
+  connectToAP: ( _ap ) ->
     @unblock()
     WiFiControl.connectToAP _ap
