@@ -4,6 +4,24 @@
 WiFiControl =
   iface: null
   debug: false
+  childProcesses:
+    connectToAP: null
+  #
+  # killMethodWorker:   This method is used to terminate specific child processes
+  #                     that various WiFiControl methods may start and possibly
+  #                     have hang.  (i.e. dhclient)
+  #
+  killMethodWorker: (method) ->
+    try
+      pstree @childProcesses[method].pid, (err, children) ->
+        cp.spawn 'kill', ['-9'].concat(children.map((p) -> p.PID))
+        console.log @childProcesses[method]
+    catch error
+      @WiFiLog error, true
+      return {
+        success: false
+        msg: "An error occurred in terminating the worker for method #{method}: #{error}"
+      }
   #
   # init:   Initial setup.  This is almost the same as config, except it
   #         adds the additional step of attempting to automatically locate
@@ -210,50 +228,34 @@ WiFiControl =
       switch process.platform
         when "linux"
           #
-          # With Linux, we can use ifconfig, iwconfig & dhclient to do most
-          # of our heavy lifting.
+          # With Linux, we can use nmcli to do the heavy lifting.
           #
-          # NOTE: The most important thing with Linux is that to automate WiFi
-          #       control, we must turn off the network-manager service while
-          #       we do so.
+          #
+          # (1) Does a connection that matches the name of the ssid
+          #     already exist?
           #
           COMMANDS =
-            stopNM: "sudo service network-manager stop"
-            enableiface: "sudo ifconfig #{@iface} up"
-            releaseIP: "sudo dhclient #{@iface} -r"
-            getIP: "sudo dhclient #{@iface}"
-          switch _ap.security
-            when "WPA"
-              # Here we must use wpa_passphrase & wpa_supplicant.
-              @WiFiLog "Connecting to #{_ap.ssid} using WPA security."
-              unless _ap.password.length
-                _msg = "If you are using #{_ap.security}, please provide a valid network password."
-                @WiFiLog _msg, true
-                return {
-                  success: false
-                  msg: _msg
-                }
-              COMMANDS.wpaPassphrase = "sudo wpa_passphrase \"#{_ap.ssid}\" \"#{_ap.password}\" > network.conf"
-              COMMANDS.wpaSupplicant = "sudo wpa_supplicant -B -Dwext -i#{@iface} -cnetwork.conf"
-              connectToPhotonChain = [ "stopNM", "wpaPassphrase", "wpaSupplicant", "releaseIP", "getIP" ]
-            when "WEP"
-              # Here we must use iwconfig.
-              @WiFiLog "Connecting to #{_ap.ssid} using WEP security."
-              unless _ap.password.length
-                COMMANDS.connect = ""
-                _msg = "If you are using #{_ap.security}, please provide a valid network password."
-                @WiFiLog _msg, true
-                return {
-                  success: false
-                  msg: _msg
-                }
-              COMMANDS.configureSSID = "sudo iwconfig #{@iface} essid \"#{_ap.ssid}\""
-              #COMMANDS.configure
-              connectToPhotonChain = [ "stopNM", "configureSSID", "enableiface", "releaseIP", "getIP"  ]
+            delete: "nmcli connection delete \"#{_ap.ssid}\""
+            connect: "nmcli device wifi connect \"#{_ap.ssid}\""
+          if _ap.password?
+            COMMANDS.connect += " password \"#{_ap.password}\""
+          ssidExistRequest = new Future
+          exec "nmcli connection show | grep \"#{_ap.ssid}\"", (error, stdout, stderr) =>
+            if stdout.length
+              ssidExistRequest.return true
             else
-              @WiFiLog "Connecting to open network #{_ap.ssid}, no security."
-              COMMANDS.configureSSID = "sudo iwconfig #{@iface} essid \"#{_ap.ssid}\""
-              connectToPhotonChain = [ "stopNM", "configureSSID", "enableiface", "releaseIP", "getIP"  ]
+              ssidExistRequest.return false
+          ssidExist = ssidExistRequest.wait()
+          #
+          # (2) Delete the old connection, if there is one.
+          #     Then, create a new connection.
+          #
+          if ssidExist
+            @WiFiLog "It appears there is already a connection for this SSID."
+            connectToPhotonChain = [ "delete", "connect" ]
+          else
+            @WiFiLog "Creating a new connection for this SSID."
+            connectToPhotonChain = [ "connect" ]
         when "win32"
           #
           # Windows is a special child.  While the netsh command provides us
@@ -326,8 +328,9 @@ WiFiControl =
       for com in connectToPhotonChain
         commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
-        exec COMMANDS[com], (error, stdout, stderr) =>
-          if error?
+        @childProcesses.connectToAP = exec COMMANDS[com], (error, stdout, stderr) =>
+          if error? and !/nmcli device wifi connect/.test(COMMANDS[com])
+            @WiFiLog error, true
             @WiFiLog stderr, true
             commandRequest.return {
               success: false
@@ -367,8 +370,9 @@ WiFiControl =
           # With Linux, we just restart the network-manager, which will
           # immediately force its own preferences and defaults.
           COMMANDS =
-            startNM: "sudo service network-manager restart"
-          resetWiFiChain = [ "startNM" ]
+            disableNetworking: "nmcli networking off"
+            enableNetworking: "nmcli networking on"
+          resetWiFiChain = [ "disableNetworking", "enableNetworking" ]
         when "win32"
           # In Windows, we are just disconnecting from the current network.
           # This typically causes the wireless to then re-connect to its first
