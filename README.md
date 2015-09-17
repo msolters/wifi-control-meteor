@@ -1,10 +1,12 @@
 # WiFi-Control
 
-A Meteor Smart Package that allows for scanning for local WiFi access points, as well as connecting/disconnecting to networks.  Since this requires access to the local network card(s), it will only work on the server.  This is great for local or (partially) offline apps.  Maybe you have a SoftAP-based IoT toy, and you just need to make a thin downloadeable "setup" client?
-
 ```sh
   meteor add msolters:wifi-control
 ```
+
+A Meteor Smart Package that allows for scanning for local WiFi access points, as well as connecting/disconnecting to networks.  Since this requires access to the local network card(s), it will only work on the server.  This is great for local or (partially) offline apps.  Maybe you have a SoftAP-based IoT toy, and you just need to make a thin downloadeable "setup" client?
+
+This package is a wrapper of the node module by the [same name](https://www.npmjs.com/package/wifi-control).  For a complete breakdown of `WiFiControl` syntax, refer to that documentation.  Keep in mind that the `WiFiControl` object is only available on the server!
 
 ## Example:
 
@@ -44,7 +46,7 @@ You may find it more convenient roll your own Meteor methods if you need to exte
 
 **A Note About Synchronicity** (*Synchronicity!*)
 
-All `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  *However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling hardware issues.
+All native `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  *However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling hardware issues.
 
 Therefore, it is recommended that if you roll your own Meteor methods, you add `this.unblock()` to prevent this problem in your own code.  Otherwise, no subsequent Meteor methods will be processed until the `WiFiControl` method returns to the first Meteor method that called it.
 
@@ -85,7 +87,7 @@ key | Explanation
 `iface` | (optional, string) can be used to manually specify a network interface to use, instead of relying on `WiFiControl.findInterface()` to automatically find it.  This could be useful if for any reason `WiFiControl.findInterface()` is not working, or you have multiple network cards.
 
 ## Scan for Networks
-This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/package/node-wifiscanner2) by Spark for the heavy lifting where AP scanning is concerned.
+This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/package/node-wifiscanner2) by Spark for the heavy lifting where AP scanning is concerned.  However, on Linux, we use a custom approach that leverages `nmcli` which bypasses the `sudo` requirement of `iwlist` and permits us to more readily scan local WiFi networks.
 
 Direct call:
 (Server only)
@@ -115,6 +117,9 @@ Example output:
 ```
 
 ## Connect To WiFi Network
+```js
+  var results = WiFiControl.connectToAP( _ap );
+```
 The `WiFiControl.connectToAP( _ap )` command takes a wireless access point as an object and attempts to direct the host machine's wireless interface to connect to it.
 
 Direct call:
@@ -122,8 +127,7 @@ Direct call:
 ```js
   var _ap = {
     ssid: "Home 2.4Ghz",
-    security: false,
-    password: ""
+    password: "mypassword"
   };
   var results = WiFiControl.connectToAP( _ap );
 ```
@@ -133,8 +137,7 @@ Meteor method:
 ```js
   var _ap = {
     ssid: "Home 2.4Ghz",
-    security: false,
-    password: ""
+    password: "mypassword"
   };
   Meteor.call( "connectToAP", _ap, function(err, response) {
     console.log( response );
@@ -169,15 +172,11 @@ Direct call:
   var results = WiFiControl.findInterface();
 ```
 
+**Automatic**
 Meteor method:
 (Server or Client)
 ```js
-  var _ap = {
-    ssid: "Home 2.4Ghz",
-    security: false,
-    password: ""
-  };
-  Meteor.call( "findInterface", "wlan2", function(err, response) {
+  Meteor.call( "findInterface", function(err, response) {
     console.log( response );
   });
 ```
@@ -191,5 +190,27 @@ Output:
 }
 ```
 
-# Some Notes
-Linux won't let you mess with your wireless without authenticating as root.  Therefore, you may find some or all WiFi features do not work unless you launch your app with `sudo meteor`.  Alternatively, you may find the server will prompt you for a password in the same console where you launched `meteor`, and will hang there until you provide it.
+**Manual**
+(Server or Client)
+```js
+  Meteor.call( "findInterface", "wlan0", function(err, response) {
+    console.log( response );
+  });
+```
+
+Output:
+```json
+{
+  "success":  true,
+  "msg":  "Wireless interface manually set to wlan0.",
+  "interface":  "wlan0"
+}
+```
+
+# Notes
+This library has been tested on Ubuntu & MacOS with no problems.
+
+Of the 3 OSs provided here, Windows is currently the least tested.  Expect bugs with:
+
+*  Connecting to secure APs in win32
+*  Resetting network interfaces in win32

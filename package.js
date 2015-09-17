@@ -1,6 +1,6 @@
 Package.describe({
   name: 'msolters:wifi-control',
-  version: '0.1.1',
+  version: '0.1.2',
   // Brief, one-line summary of the package.
   summary: 'Scan for, connect to, or disconnect from WiFi networks.',
   // URL to the Git repository containing the source code for this package.
@@ -11,7 +11,7 @@ Package.describe({
 });
 
 Npm.depends({
-  "wifi-control": "0.1.1"
+  "wifi-control": "0.1.2"
 });
 
 Package.onUse(function(api) {
