@@ -9,7 +9,6 @@
 @fs = Npm.require 'fs'
 # To execute commands in the host machine, we'll use child_process.exec!
 @execSync = Npm.require 'exec-sync'
-#@pstree = Npm.require 'ps-tree'
 
 #
 # WiFiControl Meteor Methods
