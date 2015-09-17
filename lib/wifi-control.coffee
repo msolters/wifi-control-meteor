@@ -130,7 +130,7 @@ WiFiControl =
           @WiFiLog "Host machine is MacOS."
           # On Mac, we get use the results of getting the route to
           # a public IP, and parse for interfaces.
-          findInterface = "route get 10.10.10.10 | grep interface"
+          findInterface = "networksetup -listallhardwareports | awk '/^Hardware Port: (Wi-Fi|AirPort)$/{getline;print $2}'"
           @WiFiLog "Executing: #{findInterface}"
           exec findInterface, (error, stdout, stderr) =>
             if error?
@@ -140,7 +140,7 @@ WiFiControl =
                 msg: "Error: #{stderr}"
               }
             else
-              _iface = stdout.trim().split(": ")[1]
+              _iface = stdout
               _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
