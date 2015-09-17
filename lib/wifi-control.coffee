@@ -425,24 +425,10 @@ WiFiControl =
       # (2) Execute each command.
       #
       for com in resetWiFiChain
-        commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
-        exec COMMANDS[com], (error, stdout, stderr) =>
-          if error?
-            @WiFiLog stderr, true
-            commandRequest.return {
-              success: false
-              msg: "Error: #{error}"
-            }
-          else
-            _msg = "Success!"
-            @WiFiLog _msg
-            commandRequest.return {
-              success: true
-              msg: _msg
-            }
-        commandResult = commandRequest.wait()
-        return commandResult unless commandResult
+        stdout = execSync COMMANDS[com]
+        _msg = "Success!"
+        @WiFiLog _msg
       return {
         success: true
         msg: "Successfully reset WiFi!"
