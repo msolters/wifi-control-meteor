@@ -182,7 +182,7 @@ WiFiControl =
       @WiFiLog "Scanning for nearby WiFi Access Points..."
       scanRequest = new Future
       if process.platform is "linux"
-        exec "nmcli -m multiline device wifi list", (error, stdout, stderr) ->
+        exec "nmcli -m multiline device wifi list", (error, stdout, stderr) =>
           networks = []
           parsePattern = new RegExp /\s+(.*)+/
           for nwk in stdout.split '*:'
