@@ -346,7 +346,7 @@ WiFiControl =
           COMMANDS =
             connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\""
           if _ap.password.length
-            COMMANDS.connect += "\"#{_ap.password}\""
+            COMMANDS.connect += " \"#{_ap.password}\""
           connectToAPChain = [ "connect" ]
 
       for com in connectToAPChain
