@@ -140,7 +140,7 @@ WiFiControl =
                 msg: "Error: #{stderr}"
               }
             else
-              _iface = stdout
+              _iface = stdout.trim()
               _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
@@ -262,7 +262,7 @@ WiFiControl =
           COMMANDS =
             delete: "nmcli connection delete \"#{_ap.ssid}\""
             connect: "nmcli device wifi connect \"#{_ap.ssid}\""
-          if _ap.password?
+          if _ap.password.length
             COMMANDS.connect += " password \"#{_ap.password}\""
           ssidExistRequest = new Future
           exec "nmcli connection show | grep \"#{_ap.ssid}\"", (error, stdout, stderr) =>
@@ -346,13 +346,15 @@ WiFiControl =
           connectToAPChain = [ "loadProfile", "connect" ]
         when "darwin" # i.e., MacOS
           COMMANDS =
-            connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\" \"#{_ap.password}\""
+            connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\""
+          if _ap.password.length
+            COMMANDS.connect += " \"#{_ap.password}\""
           connectToAPChain = [ "connect" ]
 
       for com in connectToAPChain
         commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
-        @childProcesses.connectToAP = exec COMMANDS[com], (error, stdout, stderr) =>
+        exec COMMANDS[com], {timeout: 10000}, (error, stdout, stderr) =>
           if error? and !/nmcli device wifi connect/.test(COMMANDS[com])
             @WiFiLog error, true
             @WiFiLog stderr, true
@@ -361,12 +363,20 @@ WiFiControl =
               msg: "Error: #{stderr}"
             }
           else
-            _msg = "Success!"
-            @WiFiLog _msg
-            commandRequest.return {
-              success: true
-              msg: _msg
-            }
+            if process.platform is "darwin"
+              if stdout is "Could not find network #{_ap.ssid}."
+                @WiFiLog stdout, true
+                commandRequest.return {
+                  success: false
+                  msg: "Error: #{stdout}"
+                }
+            else
+              _msg = "Success!"
+              @WiFiLog _msg
+              commandRequest.return {
+                success: true
+                msg: _msg
+              }
         commandResult = commandRequest.wait()
         return commandResult unless commandResult.success
       return {
