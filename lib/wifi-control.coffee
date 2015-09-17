@@ -4,24 +4,6 @@
 WiFiControl =
   iface: null
   debug: false
-  childProcesses:
-    connectToAP: null
-  #
-  # killMethodWorker:   This method is used to terminate specific child processes
-  #                     that various WiFiControl methods may start and possibly
-  #                     have hang.  (i.e. dhclient)
-  #
-  killMethodWorker: (method) ->
-    try
-      pstree @childProcesses[method].pid, (err, children) ->
-        cp.spawn 'kill', ['-9'].concat(children.map((p) -> p.PID))
-        console.log @childProcesses[method]
-    catch error
-      @WiFiLog error, true
-      return {
-        success: false
-        msg: "An error occurred in terminating the worker for method #{method}: #{error}"
-      }
   #
   # init:   Initial setup.  This is almost the same as config, except it
   #         adds the additional step of attempting to automatically locate
@@ -230,8 +212,8 @@ WiFiControl =
   #
   # connectToAP:    Direct the host machine to connect to a specific WiFi AP
   #                 using the specified parameters.
-  #                 security and pw are optional parameters; calling with
-  #                 only an ssid connects to an open network.
+  #                 pw is an optional parameter; calling with only an ssid
+  #                 connects to an open network.
   #
   connectToAP: ( _ap ) ->
     unless @iface?
@@ -250,6 +232,14 @@ WiFiControl =
           success: false
           msg: "Please provide a non-empty SSID."
         }
+      #
+      # (2) Verify there is a valid password (if no password, just add an empty one == open network)
+      #
+      unless _ap.password?
+        _ap.password = ""
+      #
+      # (3) Connect to AP using nmcli, netsh or networksetup, depending on OS.
+      #
       switch process.platform
         when "linux"
           #
@@ -262,7 +252,7 @@ WiFiControl =
           COMMANDS =
             delete: "nmcli connection delete \"#{_ap.ssid}\""
             connect: "nmcli device wifi connect \"#{_ap.ssid}\""
-          if _ap.password?
+          if _ap.password.length
             COMMANDS.connect += " password \"#{_ap.password}\""
           stdout = execSync "nmcli connection show | grep \"#{_ap.ssid}\""
           if stdout.length
