@@ -185,7 +185,8 @@ WiFiControl =
         exec "nmcli -m multiline device wifi list", (error, stdout, stderr) =>
           networks = []
           parsePattern = new RegExp /\s+(.*)+/
-          for nwk in stdout.split '*:'
+          for nwk, c in stdout.split '*:'
+            continue if c is 0
             _network = {}
             for ln, k in nwk.split '\n'
               value = parsePattern.exec( ln.trim() )
@@ -274,12 +275,11 @@ WiFiControl =
           # (2) Delete the old connection, if there is one.
           #     Then, create a new connection.
           #
+          connectToAPChain = []
           if ssidExist
             @WiFiLog "It appears there is already a connection for this SSID."
-            connectToPhotonChain = [ "delete", "connect" ]
-          else
-            @WiFiLog "Creating a new connection for this SSID."
-            connectToPhotonChain = [ "connect" ]
+            connectToAPChain.push "delete"
+          connectToAPChain.push "connect"
         when "win32"
           #
           # Windows is a special child.  While the netsh command provides us
@@ -343,13 +343,13 @@ WiFiControl =
           COMMANDS =
             loadProfile: "netsh #{@iface} add profile filename=\"#{_ap.ssid}.xml\""
             connect: "netsh #{@iface} connect ssid=\"#{_ap.ssid}\" name=\"#{_ap.ssid}\""
-          connectToPhotonChain = [ "loadProfile", "connect" ]
+          connectToAPChain = [ "loadProfile", "connect" ]
         when "darwin" # i.e., MacOS
           COMMANDS =
-            connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\""
-          connectToPhotonChain = [ "connect" ]
+            connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\" \"#{_ap.password}\""
+          connectToAPChain = [ "connect" ]
 
-      for com in connectToPhotonChain
+      for com in connectToAPChain
         commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
         @childProcesses.connectToAP = exec COMMANDS[com], (error, stdout, stderr) =>
