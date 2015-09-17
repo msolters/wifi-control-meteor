@@ -77,7 +77,6 @@ WiFiControl =
       # (1) First, we find the wireless card interface on the host.
       #
       @WiFiLog "Determining system wireless interface..."
-      interfaceRequest = new Future
       switch process.platform
         when "linux"
           @WiFiLog "Host machine is Linux."
@@ -85,79 +84,73 @@ WiFiControl =
           # active `wlan*` interfaces.
           findInterface = "ip link show | grep wlan | grep -i \"state UP\""
           @WiFiLog "Executing: #{findInterface}"
-          exec findInterface, (error, stdout, stderr) =>
-            if error?
-              if stderr.length
-                _msg = "Error: #{stderr}"
-              else
-                _msg = "Error: No network interface found."
-              @WiFiLog _msg, true
-              interfaceRequest.return {
-                success: false
-                msg: _msg
-              }
-            else
-              _iface = stdout.trim().split(": ")[1]
-              _msg = "Automatically located wireless interface #{_iface}."
-              @WiFiLog _msg
-              interfaceRequest.return {
-                success: true
-                msg: _msg
-                interface: _iface
-              }
+          _interface = execSync findInterface
+          if _interface
+            _iface = _interface.trim().split(": ")[1]
+            _msg = "Automatically located wireless interface #{_iface}."
+            @WiFiLog _msg
+            interfaceResults =
+              success: true
+              msg: _msg
+              interface: _iface
+          else
+            _msg = "Error: No network interface found."
+            @WiFiLog _msg, true
+            interfaceResults =
+              success: false
+              msg: _msg
+              interface: null
         when "win32"
           @WiFiLog "Host machine is Windows."
           # On windows we are currently assuming wlan by default.
           findInterface = "echo wlan"
           @WiFiLog "Executing: #{findInterface}"
-          exec findInterface, (error, stdout, stderr) =>
-            if error?
-              @WiFiLog stderr, true
-              interfaceRequest.return {
-                success: false
-                msg: "Error: #{stderr}"
-              }
-            else
-              _iface = stdout.trim()
-              _msg = "Automatically located wireless interface #{_iface}."
-              @WiFiLog _msg
-              interfaceRequest.return {
-                success: true
-                msg: _msg
-                interface: _iface
-              }
+          _interface = execSync findInterface
+          if _interface
+            _iface = _interface.trim()
+            _msg = "Automatically located wireless interface #{_iface}."
+            @WiFiLog _msg
+            interfaceResults =
+              success: true
+              msg: _msg
+              interface: _iface
+          else
+            _msg = "Error: No network interface found."
+            @WiFiLog _msg, true
+            interfaceResults =
+              success: false
+              msg: _msg
+              interface: null
         when "darwin"
           @WiFiLog "Host machine is MacOS."
           # On Mac, we get use the results of getting the route to
           # a public IP, and parse for interfaces.
-          findInterface = "route get 10.10.10.10 | grep interface"
+          findInterface = "networksetup -listallhardwareports | awk '/^Hardware Port: (Wi-Fi|AirPort)$/{getline;print $2}'"
           @WiFiLog "Executing: #{findInterface}"
-          exec findInterface, (error, stdout, stderr) =>
-            if error?
-              @WiFiLog stderr, true
-              interfaceRequest.return {
-                success: false
-                msg: "Error: #{stderr}"
-              }
-            else
-              _iface = stdout.trim().split(": ")[1]
-              _msg = "Automatically located wireless interface #{_iface}."
-              @WiFiLog _msg
-              interfaceRequest.return {
-                success: true
-                msg: _msg
-                interface: _iface
-              }
+          _interface = execSync findInterface
+          if _interface
+            _iface = _interface.trim()
+            _msg = "Automatically located wireless interface #{_iface}."
+            @WiFiLog _msg
+            interfaceResults =
+              success: true
+              msg: _msg
+              interface: _iface
+          else
+            _msg = "Error: No network interface found."
+            @WiFiLog _msg, true
+            interfaceResults =
+              success: false
+              msg: _msg
+              interface: null
         else
           @WiFiLog "Unrecognized operating system.  No known method for acquiring wireless interface."
-          interfaceRequest.return {
+          interfaceResults =
             success: false
             msg: "No valid wireless interface could be located."
             interface: null
-          }
-      interfaceResult = interfaceRequest.wait()
-      @iface = interfaceResult.interface
-      return interfaceResult
+      @iface = interfaceResults.interface
+      return interfaceResults
     catch error
       _msg = "Encountered an error while searching for wireless interface: #{error}"
       @WiFiLog _msg, true
