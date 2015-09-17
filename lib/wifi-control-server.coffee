@@ -8,10 +8,8 @@
 # On Windows, we need write .xml files to create network profiles :(
 @fs = Npm.require 'fs'
 # To execute commands in the host machine, we'll use child_process.exec!
-@cp = Npm.require 'child_process'
-@exec = @cp.exec
 @execSync = Npm.require 'exec-sync'
-@pstree = Npm.require 'ps-tree'
+#@pstree = Npm.require 'ps-tree'
 
 #
 # WiFiControl Meteor Methods
