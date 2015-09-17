@@ -12,7 +12,8 @@ Package.describe({
 
 Npm.depends({
   "node-wifiscanner2": "1.1.0",
-  "ps-tree": "1.0.0"
+  "ps-tree": "1.0.0",
+  "exec-sync": "0.1.6"
 });
 
 Package.onUse(function(api) {

@@ -130,7 +130,7 @@ WiFiControl =
           @WiFiLog "Host machine is MacOS."
           # On Mac, we get use the results of getting the route to
           # a public IP, and parse for interfaces.
-          findInterface = "networksetup -listallhardwareports | awk '/^Hardware Port: (Wi-Fi|AirPort)$/{getline;print $2}'"
+          findInterface = "route get 10.10.10.10 | grep interface"
           @WiFiLog "Executing: #{findInterface}"
           exec findInterface, (error, stdout, stderr) =>
             if error?
@@ -140,7 +140,7 @@ WiFiControl =
                 msg: "Error: #{stderr}"
               }
             else
-              _iface = stdout.trim()
+              _iface = stdout.trim().split(": ")[1]
               _msg = "Automatically located wireless interface #{_iface}."
               @WiFiLog _msg
               interfaceRequest.return {
@@ -262,15 +262,13 @@ WiFiControl =
           COMMANDS =
             delete: "nmcli connection delete \"#{_ap.ssid}\""
             connect: "nmcli device wifi connect \"#{_ap.ssid}\""
-          if _ap.password.length
+          if _ap.password?
             COMMANDS.connect += " password \"#{_ap.password}\""
-          ssidExistRequest = new Future
-          exec "nmcli connection show | grep \"#{_ap.ssid}\"", (error, stdout, stderr) =>
-            if stdout.length
-              ssidExistRequest.return true
-            else
-              ssidExistRequest.return false
-          ssidExist = ssidExistRequest.wait()
+          stdout = execSync "nmcli connection show | grep \"#{_ap.ssid}\""
+          if stdout.length
+            ssidExist = true
+          else
+            ssidExist = false
           #
           # (2) Delete the old connection, if there is one.
           #     Then, create a new connection.
@@ -348,37 +346,39 @@ WiFiControl =
           COMMANDS =
             connect: "networksetup -setairportnetwork #{@iface} \"#{_ap.ssid}\""
           if _ap.password.length
-            COMMANDS.connect += " \"#{_ap.password}\""
+            COMMANDS.connect += "\"#{_ap.password}\""
           connectToAPChain = [ "connect" ]
 
       for com in connectToAPChain
-        commandRequest = new Future
         @WiFiLog "Executing:\t#{COMMANDS[com]}"
-        exec COMMANDS[com], {timeout: 10000}, (error, stdout, stderr) =>
-          if error? and !/nmcli device wifi connect/.test(COMMANDS[com])
+        #
+        # Run the command, handle any errors that get thrown.
+        #
+        try
+          stdout = execSync COMMANDS[com]
+        catch error
+          unless /nmcli device wifi connect/.test(COMMANDS[com])
             @WiFiLog error, true
-            @WiFiLog stderr, true
-            commandRequest.return {
+            return {
               success: false
-              msg: "Error: #{stderr}"
+              msg: error
             }
-          else
-            if process.platform is "darwin"
-              if stdout is "Could not find network #{_ap.ssid}."
-                @WiFiLog stdout, true
-                commandRequest.return {
-                  success: false
-                  msg: "Error: #{stdout}"
-                }
-            else
-              _msg = "Success!"
-              @WiFiLog _msg
-              commandRequest.return {
-                success: true
-                msg: _msg
-              }
-        commandResult = commandRequest.wait()
-        return commandResult unless commandResult.success
+        #
+        # If we've made it this far, check the output.
+        #
+        if process.platform is "darwin" and stdout is "Could not find network #{_ap.ssid}."
+          @WiFiLog stdout, true
+          return {
+            success: false
+            msg: stdout
+          }
+        #
+        # Otherwise, so far so good!
+        #
+        @WiFiLog "Success!"
+      #
+      # We've made it through every command in the chain with no errors.
+      #
       return {
         success: true
         msg: "Successfully connected to #{_ap.ssid}!"

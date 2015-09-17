@@ -10,6 +10,7 @@
 # To execute commands in the host machine, we'll use child_process.exec!
 @cp = Npm.require 'child_process'
 @exec = @cp.exec
+@execSync = Npm.require 'exec-sync'
 @pstree = Npm.require 'ps-tree'
 
 #
