@@ -180,32 +180,39 @@ WiFiControl =
       }
     try
       @WiFiLog "Scanning for nearby WiFi Access Points..."
-      scanRequest = new Future
       if process.platform is "linux"
-        exec "nmcli -m multiline device wifi list", (error, stdout, stderr) =>
-          networks = []
-          parsePattern = new RegExp /\s+(.*)+/
-          for nwk, c in stdout.split '*:'
-            continue if c is 0
-            _network = {}
-            for ln, k in nwk.split '\n'
-              value = parsePattern.exec( ln.trim() )
-              switch k
-                when 1
-                  _network.ssid = String value[1]
-                when 3
-                  _network.channel = String value[1]
-                when 5
-                  _network.signal_level = String value[1]
-            networks.push _network
-          _msg = "Nearby WiFi APs successfully scanned (#{networks.length} found)."
-          @WiFiLog _msg
-          scanRequest.return {
-            success: true
-            msg: _msg
-            networks: networks
-          }
+        #
+        # Use nmcli to list visible wifi networks.
+        #
+        scanResults = execSync "nmcli -m multiline device wifi list"
+        #
+        # Parse the results into an array of AP objects to match
+        # the structure found in node-wifiscanner2 for win32 and MacOS.
+        #
+        networks = []
+        parsePattern = new RegExp /\s+(.*)+/
+        for nwk, c in scanResults.split '*:'
+          continue if c is 0
+          _network = {}
+          for ln, k in nwk.split '\n'
+            value = parsePattern.exec( ln.trim() )
+            switch k
+              when 1
+                _network.ssid = String value[1]
+              when 3
+                _network.channel = String value[1]
+              when 5
+                _network.signal_level = String value[1]
+          networks.push _network
+        _msg = "Nearby WiFi APs successfully scanned (#{networks.length} found)."
+        @WiFiLog _msg
+        return {
+          success: true
+          msg: _msg
+          networks: networks
+        }
       else
+        scanRequest = new Future
         WiFiScanner.scan (error, data) =>
           if error
             @WiFiLog "Error: #{error}", true
@@ -221,7 +228,7 @@ WiFiControl =
               networks: data
               msg: _msg
             }
-      scanResults = scanRequest.wait()
+        return scanRequest.wait()
     catch error
       return {
         success: false
