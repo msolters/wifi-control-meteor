@@ -4,14 +4,17 @@ WiFiControl = Npm.require 'wifi-control'
 # WiFiControl Meteor Methods
 #
 Meteor.methods
+  getIfaceState: ->
+    @unblock()
+    WiFiControl.getIfaceState()
   findInterface: ( forceInterface=null ) ->
-    @unblock
+    @unblock()
     WiFiControl.findInterface forceInterface
   scanForWiFi: ->
-    @unblock
+    @unblock()
     WiFiControl.scanForWiFi()
   resetWiFi: ->
-    @unblock
+    @unblock()
     WiFiControl.resetWiFi()
   connectToAP: ( _ap ) ->
     @unblock()
