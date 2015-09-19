@@ -46,14 +46,14 @@ You may find it more convenient roll your own Meteor methods if you need to exte
 
 **A Note About Synchronicity** (*Synchronicity!*)
 
-All native `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  *However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling hardware issues.
+All native `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  Plus, there's lots of situations where you need to wait -- you can't communicate over a network, for instance, until you're totally sure you've fully associated with the router.  *However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling these hardware issues.
 
-Therefore, it is recommended that if you roll your own Meteor methods, you add `this.unblock()` to prevent this problem in your own code.  Otherwise, no subsequent Meteor methods will be processed until the `WiFiControl` method returns to the first Meteor method that called it.
+Therefore, it is recommended that if you roll your own Meteor methods on the server that use `WiFiControl` methods, you add `this.unblock()` to prevent this problem in your own code.  Otherwise, no subsequent Meteor methods will be processed until the `WiFiControl` method returns to the first Meteor method that called it.
 
 ---
 
 ##  Initialize
-(Server only)
+Server only
 ```
   WiFiControl.init( settings );
 ```
@@ -65,6 +65,7 @@ To initialize the network interface and simultaneously pass in any custom settin
 To instruct the `WiFiControl` module to locate a wireless interface programmatically, or to manually force a network interface, see the `WiFiControl.findInterface( interface )` command.
 
 ##  Configure
+Server only
 ```js
   WiFiControl.configure( settings );
 ```
@@ -89,14 +90,12 @@ key | Explanation
 ## Scan for Networks
 This package uses the [node-wifiscanner2 NPM package](https://www.npmjs.com/package/node-wifiscanner2) by Spark for the heavy lifting where AP scanning is concerned.  However, on Linux, we use a custom approach that leverages `nmcli` which bypasses the `sudo` requirement of `iwlist` and permits us to more readily scan local WiFi networks.
 
-Direct call:
-(Server only)
+Server only
 ```js
   var results = WiFiControl.scan();
 ```
 
-Meteor method:
-(Server or Client)
+Server or Client
 ```js
   Meteor.call( "scanForWiFi", function(err, response) {
     console.log( response );
@@ -122,8 +121,7 @@ Example output:
 ```
 The `WiFiControl.connectToAP( _ap )` command takes a wireless access point as an object and attempts to direct the host machine's wireless interface to connect to it.
 
-Direct call:
-(Server only)
+Server only
 ```js
   var _ap = {
     ssid: "Home 2.4Ghz",
@@ -132,8 +130,7 @@ Direct call:
   var results = WiFiControl.connectToAP( _ap );
 ```
 
-Meteor method:
-(Server or Client)
+Server or Client
 ```js
   var _ap = {
     ssid: "Home 2.4Ghz",
@@ -144,16 +141,58 @@ Meteor method:
   });
 ```
 
+This method will not return until the host machine has either connected to the requested AP, or failed to do so and returns an error explaining why.  Depending on your physical topology, this can up to a minute to resolve.
+
+> Note:  Currently, Windows can only connect to open networks.  This is due to the encryption-specific XML formatting of Windows wireless profiles and we are currently working on it.
+
+
 ## Reset Wireless Interface
+Server only
 ```js
   WiFiControl.resetWiFi();
 ```
+
 After connecting or disconnecting to various APs programmatically (which may or may not succeed) it is useful to have a way to reset the network interface to system defaults.
 
 This method attempts to do that, either by disconnecting the interface or restarting the system manager, if it exists.  It will report either success or failure in the return message.
 
+Server or Client
+```js
+  Meteor.call( "resetWiFi", function(err, response) {
+    console.log( response );
+  });
+```
+
+
+## Get Connection State
+```js
+  var ifaceState = WiFiControl.getIfaceState();
+```
+
+This method will tell you whether or not the wireless interface is connected to an access point, and if so, what SSID.  This method is used internally, for example, when `WiFiControl.connectToAP( _ap )` is called, to make sure that the interface either successfully connects or unsuccessfully does something else before returning.
+
+Server or Client
+```js
+  Meteor.call( "getIfaceState", function(err, response) {
+    console.log( response );
+  });
+```
+
+Example output:
+```js
+ifaceState = {
+  "success": true
+  "msg": "Successfully acquired state of network interface wlan0."
+  "ssid": "Home 2.4Ghz"
+  "state": "connected"
+}
+```
 
 ## Find Wireless Interface
+Server only
+```js
+  var results = WiFiControl.findInterface();
+```
 It should not be necessary to use this method often.  Unless your wireless cards are frequently changing or being turned on or off, wireless interfaces are not expected to change a great deal.
 
 This method, when called with no argument, will attempt to automatically locate a valid wireless interface on the host machine.
@@ -166,15 +205,8 @@ Linux | wlan0, wlan1, ...
 Windows | wlan
 MacOS | en0, en1, ...
 
-Direct call:
-(Server only)
-```js
-  var results = WiFiControl.findInterface();
-```
-
 **Automatic**
-Meteor method:
-(Server or Client)
+Server or Client
 ```js
   Meteor.call( "findInterface", function(err, response) {
     console.log( response );
@@ -191,7 +223,7 @@ Output:
 ```
 
 **Manual**
-(Server or Client)
+Server or Client
 ```js
   Meteor.call( "findInterface", "wlan0", function(err, response) {
     console.log( response );
@@ -214,3 +246,19 @@ Of the 3 OSs provided here, Windows is currently the least tested.  Expect bugs 
 
 *  Connecting to secure APs in win32
 *  Resetting network interfaces in win32
+
+
+## Change Log
+
+### v0.1.3
+9/19/2015
+*  `WiFiControl.getIfaceState()`
+*  `WiFiControl.connectToAP( ap )` now waits on `WiFiControl.getIfaceState()` to ensure network interface either succeeds or fails in connection attempt before returning a result.  This definitely works on MacOS and Linux.
+
+### v0.1.2
+9/18/2015
+
+*  `WiFiControl.init( settings )` and `WiFiControl.configure( settings )`
+*  `WiFiControl.connectToAP( ap )`, does not wait for connection to settle, no secure AP for win32 yet.
+*  `WiFiControl.findInterface( iface )`
+*  `WiFiControl.scan()`
