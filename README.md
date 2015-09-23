@@ -249,6 +249,10 @@ Of the 3 OSs provided here, Windows is currently the least tested.  Expect bugs 
 
 
 ## Change Log
+### v0.1.4
+9/23/2015
+*  `WiFiControl.resetWiFi()` blocks until wireless interface reports it has reset or returns an error.
+*  `WiFiControl.getIfaceState()` now returns information about if the wireless interface is powered or not.
 
 ### v0.1.3
 9/19/2015
