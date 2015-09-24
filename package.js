@@ -16,7 +16,7 @@ Npm.depends({
 
 Package.onUse(function(api) {
   api.versionsFrom('1.1.0.3');
-  api.use(['coffeescript', 'meteor-base']);
+  api.use(['coffeescript', 'meteor-base@1.0.1']);
   api.addFiles( ['wifi-control.coffee'], 'server');
   api.export('WiFiControl', 'server');
 });
