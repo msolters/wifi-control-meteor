@@ -1,4 +1,5 @@
 WiFiControl = Npm.require 'wifi-control'
+@scanForWiFiSync = Meteor.wrapAsync WiFiControl.scanForWiFi
 
 #
 # WiFiControl Meteor Methods
@@ -12,7 +13,6 @@ Meteor.methods
     WiFiControl.findInterface forceInterface
   scanForWiFi: ->
     @unblock()
-    scanForWiFiSync = Meteor.wrapAsync WiFiControl.scanForWiFi
     scanForWiFiSync()
   resetWiFi: ->
     @unblock()
