@@ -6,7 +6,7 @@
 
 A Meteor Smart Package that allows for scanning for local WiFi access points, as well as connecting/disconnecting to networks.  Since this requires access to the local network card(s), it will only work on the server.  This is great for local or (partially) offline apps.  Maybe you have a SoftAP-based IoT toy, and you just need to make a thin downloadeable "setup" client?
 
-This package is a wrapper of the node module by the [same name](https://www.npmjs.com/package/wifi-control).  For a complete breakdown of `WiFiControl` syntax, refer to that documentation.  Keep in mind that the `WiFiControl` object is only available on the server!
+This package is a wrapper of the node module by the [same name](https://www.npmjs.com/package/wifi-control).  For a complete breakdown of `WiFiControl` syntax, refer to that documentation.  Keep in mind that the `WiFiControl` object is only directly available on the server!  You must use the Meteor methods to access WiFi functionality on the client.
 
 ## Example:
 
@@ -42,11 +42,15 @@ Example Output:
 # Methods
 WiFiControl exports the `WiFiControl` object to your server-side code, giving you access to all the below methods needed to programmatically scan or (dis)connect to and from wireless access points.  However, it also comes right out of the box with some helpful Meteor methods that wrap these methods, making it easy to call them directly from your client code.
 
-You may find it more convenient roll your own Meteor methods if you need to extensive transformations, such as filtering through WiFi scan results to return only networks that match a certain SSID prefix rule.
+You may find it more convenient roll your own Meteor methods if you need more extensive transformations, such as filtering through WiFi scan results to return only networks that match a certain SSID prefix rule.
 
 **A Note About Synchronicity** (*Synchronicity!*)
 
-All native `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  Plus, there's lots of situations where you need to wait -- you can't communicate over a network, for instance, until you're totally sure you've fully associated with the router.  *However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling these hardware issues.
+All native `WiFiControl` methods are synchronous.  Calls to them will block.  This is a decision made that reflects the fact that low-level system operations such as starting and stopping network interfaces should not be happening simultaneously.  Plus, there's lots of situations where you need to wait -- you can't communicate over a network, for instance, until you're totally sure you've fully associated with the router.
+
+The only exception to this is `WiFiControl.scanForWiFi( callback )`.
+
+*However*, the provided Meteor methods implement `this.unblock()`, which prevents other server-side code (such as unrelated Meteor methods) from grinding to a halt while the operating system is handling these hardware issues.
 
 Therefore, it is recommended that if you roll your own Meteor methods on the server that use `WiFiControl` methods, you add `this.unblock()` to prevent this problem in your own code.  Otherwise, no subsequent Meteor methods will be processed until the `WiFiControl` method returns to the first Meteor method that called it.
 
@@ -240,15 +244,20 @@ Output:
 ```
 
 # Notes
-This library has been tested on Ubuntu & MacOS with no problems.
-
-Of the 3 OSs provided here, Windows is currently the least tested.  Expect bugs with:
-
-*  Connecting to secure APs in win32
-*  Resetting network interfaces in win32
+This library has been tested on Ubuntu 15.04, MacOS Yosemite, and Windows 10.
 
 
 ## Change Log
+### v1.0.1
+9/27/2015
+*  Documentation fixes.
+
+### v1.0.0
+9/26/2015
+*  `WiFiControl.getIfaceState(cb)` is extended to include more robust `connection` state of the interface, and also tested to work with Windows.  This method has also become an async method now!  **This is a breaking change if it is currently implemented in user application code as a sync method.**
+*  `WiFiControl.resetWiFi()` tested to work with Windows.
+*  `WiFiControl.connecToAP(ap)` tested to work with Windows both with open and secure networks.
+
 ### v0.1.6
 9/25/2015
 *  Upgraded dependencies to explicitly include `meteor-base` for Meteor 1.2 compatibility.

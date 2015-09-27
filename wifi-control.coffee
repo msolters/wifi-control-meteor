@@ -12,7 +12,8 @@ Meteor.methods
     WiFiControl.findInterface forceInterface
   scanForWiFi: ->
     @unblock()
-    WiFiControl.scanForWiFi()
+    scanForWiFiSync = Meteor.wrapAsync WiFiControl.scanForWiFi
+    scanForWiFiSync()
   resetWiFi: ->
     @unblock()
     WiFiControl.resetWiFi()
